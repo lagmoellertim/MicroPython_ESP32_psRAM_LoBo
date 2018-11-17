@@ -43,7 +43,7 @@ NUM_BYTES_IN_SDCARD_SECTOR = 512
 # Microphone related config
 
 SAMPLES_PER_SECOND = 10000
-RECORD_TIME_IN_SECONDS = 10
+RECORD_TIME_IN_SECONDS = 2
 NUM_BYTES_RX = 8
 NUM_BYTES_USED = 2
 BITS_PER_SAMPLE = NUM_BYTES_USED * 8
@@ -76,24 +76,6 @@ def gen_wav_header(
     o += datasize.to_bytes(4, 'little')  # (4byte) Data size in bytes
     return o
 
-
-wav_header = gen_wav_header(SAMPLES_PER_SECOND, BITS_PER_SAMPLE, 1,
-                            SAMPLES_PER_SECOND * RECORD_TIME_IN_SECONDS)
-audio = I2S(  # dmacount: 2 to 128   dmalen 8 to 1024
-    id=I2S.NUM0,
-    sck=14,
-    ws=15,
-    sdin=32,
-    mode=I2S.MASTER | I2S.RX,
-    samplerate=SAMPLES_PER_SECOND,
-    bits=I2S.BPS32,
-    channelformat=I2S.RIGHT_LEFT,
-    commformat=I2S.I2S | I2S.I2S_MSB,
-    dmacount=128,
-    dmalen=128,
-    )
-samples = bytearray(NUM_BYTES_IN_SAMPLE_BLOCK)
-sd_sector = bytearray(NUM_BYTES_IN_SDCARD_SECTOR)
 uos.sdconfig(
     uos.SDMODE_SPI,
     clk=18,
@@ -103,8 +85,27 @@ uos.sdconfig(
     maxspeed=40,
     )
 uos.mountsd()
-uos.statvfs('/sd')
+
 with open('/sd/upy.wav', 'wb') as s:
+    samples = bytearray(NUM_BYTES_IN_SAMPLE_BLOCK)
+    sd_sector = bytearray(NUM_BYTES_IN_SDCARD_SECTOR)
+    
+    audio = I2S(  
+        id=I2S.NUM0,
+        sck=14,
+        ws=15,
+        sdin=32,
+        mode=I2S.MASTER | I2S.RX,
+        samplerate= SAMPLES_PER_SECOND,
+        bits=I2S.BPS32,
+        channelformat=I2S.RIGHT_LEFT,
+        commformat=I2S.I2S | I2S.I2S_MSB,
+        dmacount=32,  # dmacount: 2 to 128   
+        dmalen=128,   # dmalen 8 to 1024
+        )
+    
+    wav_header = gen_wav_header(SAMPLES_PER_SECOND, BITS_PER_SAMPLE, 1,
+                                SAMPLES_PER_SECOND * RECORD_TIME_IN_SECONDS)
     s.write(wav_header)
     for j in range(NUM_SAMPLE_BYTES_IN_WAV
                    // NUM_BYTES_IN_SDCARD_SECTOR):
@@ -112,18 +113,18 @@ with open('/sd/upy.wav', 'wb') as s:
         numread = audio.readinto(samples)
         end = utime.ticks_us()
 
-        # print("read mic (us) = ", end-start)
+        #print("read mic (us) = ", end-start)
 
         start = utime.ticks_us()
         for i in range(NUM_BYTES_IN_SAMPLE_BLOCK // NUM_BYTES_RX):
             sd_sector[i * 2] = samples[i * 8 + 2]
             sd_sector[i * 2 + 1] = samples[i * 8 + 3]
         end = utime.ticks_us()
-        print ('decimate (us) = ', end - start)
+        #print ('decimate (us) = ', end - start)
         start = utime.ticks_us()
         numwrite = s.write(sd_sector)
         end = utime.ticks_us()
 
-        # print("write sdcard (us) = ", end-start)
+        #print("write sdcard (us) = ", end-start)
 
 audio.deinit()
