@@ -29,7 +29,6 @@
 #include "py/runtime.h"
 #include "modmachine.h"
 #include "driver/i2s.h"
-#include "freertos/FreeRTOS.h"
 
 typedef enum _machine_i2s_port_state_t {
     MACHINE_I2S_PORT_NOT_USED,
@@ -121,7 +120,7 @@ STATIC void machine_i2s_init_helper(machine_i2s_obj_t *self, size_t n_pos_args, 
     // is Sample Rate valid?
     // No validation done:  ESP-IDF API does not indicate a valid range for sample rate
 
-    // is Bits-Per-Second valid?
+    // is Bits-Per-Sample valid?
     i2s_bits_per_sample_t i2s_bits = args[ARG_bits].u_int;
     if ((i2s_bits != I2S_BITS_PER_SAMPLE_8BIT) &&
         (i2s_bits != I2S_BITS_PER_SAMPLE_16BIT) &&
@@ -213,20 +212,20 @@ STATIC void machine_i2s_init_helper(machine_i2s_obj_t *self, size_t n_pos_args, 
     switch (ret) {
         case ESP_ERR_INVALID_ARG:
             mp_raise_msg(&mp_type_OSError, "I2S driver install:  Parameter error");
-            return;
+            break;
         case ESP_ERR_NO_MEM:
             mp_raise_msg(&mp_type_OSError, "I2S driver install:  Out of memory");
-            return;
+            break;
     }
 
     ret = i2s_set_pin(self->id, &pin_config);
     switch (ret) {
         case ESP_ERR_INVALID_ARG:
             mp_raise_msg(&mp_type_OSError, "I2S set pin:  Parameter error");
-            return;
+            break;
         case ESP_FAIL:
             mp_raise_msg(&mp_type_OSError, "I2S set pin:  IO error");
-            return;
+            break;
     }
 }
 
@@ -297,7 +296,7 @@ STATIC mp_obj_t machine_i2s_readinto(mp_uint_t n_pos_args, const mp_obj_t *pos_a
     switch (ret) {
         case ESP_ERR_INVALID_ARG:
             mp_raise_msg(&mp_type_OSError, "I2S read:  Parameter error");
-            return;
+            break;
     }
 
     return mp_obj_new_int(num_bytes_read);
@@ -315,7 +314,6 @@ STATIC mp_obj_t machine_i2s_deinit(mp_obj_t self_in) {
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(machine_i2s_deinit_obj, machine_i2s_deinit);
 
 STATIC const mp_rom_map_elem_t machine_i2s_locals_dict_table[] = {
-
     // Methods
     { MP_ROM_QSTR(MP_QSTR_init),            MP_ROM_PTR(&machine_i2s_init_obj) },
     { MP_ROM_QSTR(MP_QSTR_readinto),        MP_ROM_PTR(&machine_i2s_readinto_obj) },
