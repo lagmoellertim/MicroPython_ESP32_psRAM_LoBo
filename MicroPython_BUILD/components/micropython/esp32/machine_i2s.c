@@ -4,7 +4,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Mike Teachman
- *  *
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -100,6 +100,10 @@ STATIC void machine_i2s_init_helper(machine_i2s_obj_t *self, size_t n_pos_args, 
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_pos_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
     
+    //
+    // ---- Check validity of arguments ----
+    //
+
     // are I2S pin assignments valid?
     int8_t bck = args[ARG_bck].u_obj == MP_OBJ_NULL ? -1 : machine_pin_get_id(args[ARG_bck].u_obj);
     int8_t ws = args[ARG_ws].u_obj == MP_OBJ_NULL ? -1 : machine_pin_get_id(args[ARG_ws].u_obj);
@@ -249,14 +253,16 @@ STATIC void machine_i2s_init_helper(machine_i2s_obj_t *self, size_t n_pos_args, 
 // MicroPython bindings for I2S
 STATIC void machine_i2s_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
     machine_i2s_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    mp_printf(print, "I2S(id=%u, bck=%d, ws=%d, sdout=%d, sdin=%d"
-            "standard=%u,\n, mode=%u, dataformat=%u,\n"
-            "channelformat=%u, samplerate=%d,"
+    mp_printf(print, "I2S(id=%u, bck=%d, ws=%d, sdout=%d, sdin=%d\n"
+            "standard=%u, mode=%u,\n"
+            "dataformat=%u, channelformat=%u,\n"
+            "samplerate=%d,\n"
             "dmacount=%d, dmalen=%d,\n"
             "apllrate=%d)",
             self->id, self->bck, self->ws, self->sdout, self->sdin,
-            self->standard, self->mode, self->dataformat,
-            self->channelformat, self->samplerate,
+            self->standard, self->mode,
+            self->dataformat, self->channelformat,
+            self->samplerate,
             self->dmacount, self->dmalen,
             self->apllrate
             );
