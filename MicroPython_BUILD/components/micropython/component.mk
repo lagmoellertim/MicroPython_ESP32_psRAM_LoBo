@@ -151,7 +151,6 @@ include $(COMPONENT_PATH)/py/py.mk
 CFLAGS += $(CFLAGS_MOD)
 
 
-
 # List of MicroPython source and object files
 # for Qstr generation
 # -------------------------------------------
@@ -183,6 +182,9 @@ SRC_C =  $(addprefix esp32/,\
 	machine_neopixel.c \
 	machine_dht.c \
 	machine_ow.c \
+	argument_examples.c \
+	machine_i2s.c \
+	bitcrusher.c \
 	)
 
 ifdef CONFIG_MICROPY_USE_DISPLAY

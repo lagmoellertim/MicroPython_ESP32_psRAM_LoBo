@@ -5,6 +5,7 @@
  *
  * Copyright (c) 2016 Damien P. George
  * Copyright (c) 2018 LoBo (https://github.com/loboris)
+ * Copyright (c) 2019 Mike Teachman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -748,7 +749,7 @@ STATIC mp_obj_t machine_uart_deinit(mp_obj_t self_in) {
     		vTaskDelay(100 / portTICK_PERIOD_MS);
     		tmo--;
 		}
-		if (tmo) {
+		if (!tmo) {
 			mp_raise_ValueError("Cannot stop UART task!");
 		}
 		// delete uart driver
@@ -762,6 +763,54 @@ STATIC mp_obj_t machine_uart_deinit(mp_obj_t self_in) {
     return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(machine_uart_deinit_obj, machine_uart_deinit);
+
+
+//-----------------------------------------------------
+// Following are 3 new methods to support uasyncio use on the Street Sense project
+// These methods split apart a deinit() operation into 3 constituents.
+// The purpose:  avoid the blocking implementation in deinit() which can
+// block for up to 5s.
+STATIC mp_obj_t machine_uart_deinit_start(mp_obj_t self_in) {
+    machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
+
+    if (task_id[self->uart_num] != NULL) {
+        // stop the uart task
+        if (uart_mutex) xSemaphoreTake(uart_mutex, 200 / portTICK_PERIOD_MS);
+        self->end_task = 1;
+        if (uart_mutex) xSemaphoreGive(uart_mutex);
+    }
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(machine_uart_deinit_start_obj, machine_uart_deinit_start);
+
+//-----------------------------------------------------
+STATIC mp_obj_t machine_uart_is_task_running(mp_obj_t self_in) {
+    machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
+
+    if (task_id[self->uart_num] != NULL) {
+        return mp_const_true;
+    }
+    else {
+        return mp_const_false;
+    }
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(machine_uart_is_task_running_obj, machine_uart_is_task_running);
+
+//-----------------------------------------------------
+STATIC mp_obj_t machine_uart_deinit_finish(mp_obj_t self_in) {
+    machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
+
+    // delete uart driver
+    uart_driver_delete(self->uart_num);
+    // free the uart buffer
+    if (uart_buf[self->uart_num] == NULL) {
+        if (uart_buf[self->uart_num]->buf) free(uart_buf[self->uart_num]->buf);
+    }
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(machine_uart_deinit_finish_obj, machine_uart_deinit_finish);
 
 //--------------------------------------------------
 STATIC mp_obj_t machine_uart_any(mp_obj_t self_in) {
@@ -946,6 +995,9 @@ MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(machine_uart_write_break_obj, 3, 4, machine_
 STATIC const mp_rom_map_elem_t machine_uart_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_init),			MP_ROM_PTR(&machine_uart_init_obj) },
     { MP_ROM_QSTR(MP_QSTR_deinit),			MP_ROM_PTR(&machine_uart_deinit_obj) },
+    { MP_ROM_QSTR(MP_QSTR_deinit_start),    MP_ROM_PTR(&machine_uart_deinit_start_obj) },
+    { MP_ROM_QSTR(MP_QSTR_is_task_running), MP_ROM_PTR(&machine_uart_is_task_running_obj) },
+    { MP_ROM_QSTR(MP_QSTR_deinit_finish),   MP_ROM_PTR(&machine_uart_deinit_finish_obj) },
 
     { MP_ROM_QSTR(MP_QSTR_any),				MP_ROM_PTR(&machine_uart_any_obj) },
     { MP_ROM_QSTR(MP_QSTR_read),			MP_ROM_PTR(&mp_stream_read_obj) },
@@ -976,6 +1028,9 @@ STATIC MP_DEFINE_CONST_DICT(machine_uart_locals_dict, machine_uart_locals_dict_t
 //------------------------------------------------------------------------------------------------
 STATIC mp_uint_t machine_uart_read(mp_obj_t self_in, void *buf_in, mp_uint_t size, int *errcode) {
     machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
+
+    //printf("machine_uart_read() START\n");
+
 
     if (task_id[self->uart_num] == NULL) {
         *errcode = MP_EINVAL;
@@ -1030,12 +1085,18 @@ STATIC mp_uint_t machine_uart_read(mp_obj_t self_in, void *buf_in, mp_uint_t siz
         return MP_STREAM_ERROR;
     }
 
+    //printf("machine_uart_read() bytes_read = %d\n", bytes_read);
+
+
     return bytes_read;
 }
 
 //-------------------------------------------------------------------------------------------------------
 STATIC mp_uint_t machine_uart_write(mp_obj_t self_in, const void *buf_in, mp_uint_t size, int *errcode) {
     machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
+
+    //printf("machine_uart_write() START\n");
+
 
     if (task_id[self->uart_num] == NULL) {
         *errcode = MP_EINVAL;
@@ -1050,6 +1111,10 @@ STATIC mp_uint_t machine_uart_write(mp_obj_t self_in, const void *buf_in, mp_uin
     }
 
     // return number of bytes written
+
+    //printf("machine_uart_write() bytes_written = %d\n", bytes_written);
+
+
     return bytes_written;
 }
 
@@ -1081,6 +1146,9 @@ STATIC mp_uint_t machine_uart_ioctl(mp_obj_t self_in, mp_uint_t request, mp_uint
         *errcode = MP_EINVAL;
         ret = MP_STREAM_ERROR;
     }
+
+    //printf("machine_uart_ioctl() ret = %d\n", ret);
+
     return ret;
 }
 
